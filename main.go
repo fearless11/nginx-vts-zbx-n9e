@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -18,6 +19,9 @@ var (
 	s bool
 	u bool
 	o string
+	t bool
+	a string
+	p string
 )
 
 func init() {
@@ -25,6 +29,9 @@ func init() {
 	flag.BoolVar(&s, "s", false, "print serverzone")
 	flag.BoolVar(&u, "u", false, "print upstreamzone")
 	flag.StringVar(&o, "o", "", "custom parameters")
+	flag.BoolVar(&t, "t", false, "provide nightinagle api metrics")
+	flag.StringVar(&a, "a", "http://10.51.1.31:5810/api/transfer/push", "push data to nightingale")
+	flag.StringVar(&p, "p", "10.10.10.10", "assign endpoint")
 }
 
 type Response struct {
@@ -49,6 +56,15 @@ type Custom struct {
 	ServerZone   string `json:"{#SERVERZONE},omitempty"`
 	Upstream     string `json:"{#UPSTREAM},omitempty"`
 	UpstreamName string `json:"{#UPSTREAMNAME},omitempty"`
+}
+type n9e struct {
+	Metric      string      `json:"metric"`
+	Endpoint    string      `json:"endpoint"`
+	Timestamp   int64       `json:"timestamp"`
+	Step        int64       `json:"step"`
+	Value       interface{} `json:"value"`
+	CounterType string      `json:"counterType"`
+	Tags        string      `json:"tags"`
 }
 
 func run(url string) *Response {
@@ -146,11 +162,79 @@ func calculation() {
 	}
 }
 
+func pushNightingale() {
+	data1 := run(c)
+	time.Sleep(1 * time.Second)
+	data2 := run(c)
+
+	metrics := make([]*n9e, 0)
+	for k, v := range data1.ServerZones {
+		metric := &n9e{}
+
+		metric.Metric = "servername." + k
+		metric.Endpoint = p
+		metric.Value = data2.ServerZones[k].RequestCounter - v.RequestCounter
+		metric.CounterType = "GAUGE"
+		metric.Tags = "from=ngx-vts"
+		metric.Timestamp = time.Now().Unix()
+		metric.Step = 60
+
+		metrics = append(metrics, metric)
+	}
+
+	for k, upstreams := range data1.UpstreamZones {
+		for i, upstream := range upstreams {
+			metric := &n9e{}
+			metric.Metric = "upstream." + upstream.Server
+			metric.Endpoint = p
+			metric.Value = data2.UpstreamZones[k][i].RequestCounter - upstream.RequestCounter
+			metric.CounterType = "GAUGE"
+			metric.Tags = "from=ngx-vts"
+			metric.Timestamp = time.Now().Unix()
+			metric.Step = 60
+			metrics = append(metrics, metric)
+		}
+	}
+
+	byt, err := json.MarshalIndent(metrics, "", "\t")
+	if err != nil {
+		log.Println(err)
+	}
+
+	resp, err := http.Post(a, "application/json", bytes.NewReader(byt))
+	if err != nil {
+		log.Println(err)
+	}
+	defer resp.Body.Close()
+
+	respBty, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+	}
+
+	reg := regexp.MustCompile("\"dat\":\"ok\"")
+	if len(reg.FindAllString(string(respBty), -1)) == 0 {
+		log.Println(string(respBty))
+	}
+}
+
 func main() {
 	flag.Parse()
-	if len(o) != 0 {
-		calculation()
+
+	if t {
+		//  nightinagle API
+		t := time.NewTicker(1 * time.Minute)
+		defer t.Stop()
+		for {
+			pushNightingale()
+			<-t.C
+		}
 	} else {
-		discovery()
+		// zabbix LLD
+		if len(o) != 0 {
+			calculation()
+		} else {
+			discovery()
+		}
 	}
 }

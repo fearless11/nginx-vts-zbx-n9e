@@ -1,6 +1,6 @@
 <!-- TOC -->
 
-- [nginx-moudle-vts && zabbix 自动发现](#nginx-moudle-vts--zabbix-自动发现)
+- [nginx-moudle-vts && ( zabbix || nightinagle)](#nginx-moudle-vts---zabbix--nightinagle)
     - [reference](#reference)
     - [功能](#功能)
     - [nginx-moudle-vts](#nginx-moudle-vts)
@@ -10,28 +10,41 @@
 
 <!-- /TOC -->
 
-## nginx-moudle-vts && zabbix 自动发现
+## nginx-moudle-vts && ( zabbix || nightinagle)
+
+- 支持zabbix-agent实现zabbix的自动发现
+
+- 支持nginx-module-vts数据push到夜莺
 
 ### reference
 
 - [nginx-moudle-vts](https://github.com/vozlt/nginx-module-vts)
 - [zabbix-LLD](https://www.zabbix.com/documentation/3.4/manual/discovery/low_level_discovery)
 - [zabbix自动发现](https://blog.csdn.net/yin138/article/details/83183346)
+- [n9e-push-api-metrics](https://n9e.didiyun.com/zh/docs/api/data/)
 
 ### 功能
 - 计算每个servername的request/s
 - 计算每个upstream的request/s
 
    ```bash
+   # for zabbix LLD
    # 查看所有servernames
-   zabbix-agent/nginx-vts-zbx -s
+   bin/nginx-vts-zbx -s
    # 查看servername的req/s
-   zabbix-agent/nginx-vts-zbx -s -o "test.abc.com"
+   bin/nginx-vts-zbx -s -o "test.abc.com"
 
    # 查看所有upstreams
-   zabbix-agent/nginx-vts-zbx -u
+   bin/nginx-vts-zbx -u
    # 查看单个upstream的req/s
-   zabbix-agent/nginx-vts-zbx -u -o "test_upstream-10.11.100.79:9000"
+   bin/nginx-vts-zbx -u -o "test_upstream-10.11.100.79:9000"
+
+   # for nightinagle
+   # 一分钟上报一次, 默认endpoint为10.10.10.10
+   # -t 开启nightingale,关闭zabbix LLD
+   # -a 指定transfer
+   # -p 上报endpoint
+   bin/nginx-vts-zbx -t -a "http://10.51.1.31:5810/api/transfer/push" -p 10.10.10.111
    ```
 
 ### nginx-moudle-vts
