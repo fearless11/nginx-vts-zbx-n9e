@@ -1,0 +1,12 @@
+{
+    "data": [
+        {
+            "{#Upstream}": "test",
+            "{#UpstreamName}": "10.11.100.17:9000"
+        },
+        {
+            "{#Upstream}": "test",
+            "{#UpstreamName}": "10.11.100.79:9000"
+        }
+    ]
+}
