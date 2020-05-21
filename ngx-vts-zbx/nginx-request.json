@@ -1,0 +1,32 @@
+[
+    {
+        "Name": "test.zhenai.com",
+        "Request": 0,
+        "Type": "SERVERZONE"
+    },
+    {
+        "Name": "localhost",
+        "Request": 0,
+        "Type": "SERVERZONE"
+    },
+    {
+        "Name": "screen.abc.com",
+        "Request": 5,
+        "Type": "SERVERZONE"
+    },
+    {
+        "Name": "all",
+        "Request": 5,
+        "Type": "SERVERZONE"
+    },
+    {
+        "Name": "test-10.11.100.17:9093",
+        "Request": 0,
+        "Type": "UPSTREAM"
+    },
+    {
+        "Name": "test-10.11.100.79:9093",
+        "Request": 0,
+        "Type": "UPSTREAM"
+    }
+]

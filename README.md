@@ -7,6 +7,7 @@
     - [zabbix LLD](#zabbix-lld)
     - [zabbix-client](#zabbix-client)
     - [trobule](#trobule)
+    - [优化](#优化)
 
 <!-- /TOC -->
 
@@ -168,3 +169,15 @@
   # 替换*为all或者其他
   strings.Replace(o, "*", "all", -1)
   ```
+
+
+### 优化
+
+- fetch-nginx-vts: 每分钟获取nginx-vts的数据写文件
+- ngx-vts-zbx: 读文件提供给zabbix和夜莺
+
+```bash
+## for nightinagle
+* * * * * /usr/local/monitor/nginx_vts/fetch-ngx-vts >/dev/null 2>&1
+* * * * * /usr/local/monitor/nginx_vts/ngx-vts-zbx -n -p 10.11.100.230 >/dev/null 2>&1
+```

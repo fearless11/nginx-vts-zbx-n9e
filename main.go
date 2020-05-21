@@ -218,6 +218,15 @@ func pushNightingale() {
 	}
 }
 
+func cronFetchToFile() {
+	t := time.NewTicker(1 * time.Minute)
+	defer t.Stop()
+	for {
+		calculation()
+		<-t.C
+	}
+}
+
 func main() {
 	flag.Parse()
 
