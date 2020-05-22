@@ -1,34 +1,33 @@
-<!-- TOC -->
 
-- [nginx-moudle-vts && ( zabbix || nightinagle)](#nginx-moudle-vts---zabbix--nightinagle)
-    - [reference](#reference)
-    - [功能](#功能)
-    - [nginx-moudle-vts](#nginx-moudle-vts)
-    - [zabbix LLD](#zabbix-lld)
-    - [zabbix-client](#zabbix-client)
-    - [trobule](#trobule)
-    - [优化](#优化)
 
-<!-- /TOC -->
+### 需求
 
-## nginx-moudle-vts && ( zabbix || nightinagle)
+- 抓取nginx-module-vts的数据
+- 计算每个servername、upstream的每秒请求数
+- 发送到监控平台zabbix和夜莺
 
-- 支持zabbix-agent实现zabbix的自动发现
-
-- 支持nginx-module-vts数据push到夜莺
-
-### reference
+### 文档
 
 - [nginx-moudle-vts](https://github.com/vozlt/nginx-module-vts)
 - [zabbix-LLD](https://www.zabbix.com/documentation/3.4/manual/discovery/low_level_discovery)
 - [zabbix自动发现](https://blog.csdn.net/yin138/article/details/83183346)
 - [n9e-push-api-metrics](https://n9e.didiyun.com/zh/docs/api/data/)
 
-### 功能
-- 计算每个servername的request/s
-- 计算每个upstream的request/s
+
+### 设计
+
+- 方案一（不合理）： 利用zabbix的LLD每次执行时发送请求抓数据,出现断点,机器负载高
+- 方案二: 定期每秒抓取数据计算后写文件,zabbix的LLD每次执行读文件数据
+
+#### 方案一 
+
+- 源码: main.go
 
    ```bash
+   # 编译
+   go build -o nginx-vts-zbx
+   mv nginx-vts-zbx ./bin
+
    # for zabbix LLD
    # 查看所有servernames
    bin/nginx-vts-zbx -s
@@ -47,6 +46,63 @@
    # -p 上报endpoint
    bin/nginx-vts-zbx -t -a "http://10.51.1.31:5810/api/transfer/push" -p 10.10.10.111
    ```
+
+   ```bash
+   # 部署
+   # for zabbix
+   # zabbix client
+   # cat /usr/local/zabbix/conf/zabbix_agentd/userparameter_ngx_vts.conf
+   UserParameter=serverzones.discovery,/bin/nginx-vts-zbx -c "http://127.0.0.1/status/format/json" -s
+   UserParameter=serverzone.reqs[*],/bin/nginx-vts-zbx -s -o $1
+   UserParameter=upstreamzones.discovery,/bin/nginx-vts-zbx -u
+   UserParameter=upstreamzone.reqs[*],/bin/nginx-vts-zbx -u -o $1
+
+   # zabbix server 验证
+   zabbix_get -s 10.201.0.11 -k serverzones.discovery
+   zabbix_get -s 10.201.0.11 -k serverzone.reqs[s.abc.com]
+   zabbix_get -s 10.201.0.11 -k upstreamzones.discovery
+   zabbix_get -s 10.201.0.11 -k upstreamzone.reqs["weixin-10.21.4.157:8087"]
+   ```
+
+#### 方案二
+
+- fetch-nginx-vts: 每分钟获取nginx-vts的数据计算后写文件
+- ngx-vts-zbx: 读文件提供给zabbix和夜莺
+
+    ```bash
+    ## fetch-nginx-vts
+    go build -o fetch-nginx-vts
+    # 指定nginx-vts源
+    ./fetch-nginx-vts -u "http://screen.abc.com/ngx_status/format/json"
+    # 指定写的文件
+    ./fetch-nginx-vts -f "nginx-request.json"
+
+    ## ngx-vts-zbx
+    go build -o ngx-vts-zbx
+    # zabbix的LLD  s: serverzone  u: upstream
+    go run  main.go -f "nginx-request.json" -s
+    go run  main.go -f "nginx-request.json" -u
+    go run  main.go -f "nginx-request.json" -s -o screen.abc.com
+    go run  main.go -f "nginx-request.json" -u -o test-10.11.100.79:9093
+    # 夜莺
+    go run  main.go -f "nginx-request.json" -n
+    # 指定endpoint上报地址
+    go run  main.go -f "nginx-request.json" -c "http://10.51.1.31:5810/api/transfer/push" -p 10.10.10.11 -n
+    ```
+
+    ```bash
+    ## 部署
+    ## for nightinagle : 用cron每分钟写入
+    * * * * * /usr/local/monitor/nginx_vts/fetch-ngx-vts >/dev/null 2>&1
+    * * * * * /usr/local/monitor/nginx_vts/ngx-vts-zbx -n -p 10.11.100.230 >/dev/null 2>&1
+
+    ## for zabbix LLD
+    /etc/zabbix/zabbix_agentd.d/scripts/ngx-vts-zbx
+    # 不改zabbix用户自定义参数
+    ln -s  /etc/zabbix/zabbix_agentd.d/scripts/ngx-vts-zbx /bin/nginx-vts-zbx
+    ```
+
+### 知识
 
 ### nginx-moudle-vts
 - install && config
@@ -81,6 +137,8 @@
   ```
 
 ### zabbix LLD
+
+- 理解：通过自动发现配置宏 ; 通过用户参数获取自动发现的宏
 
 - 用zabbix-agent的实现逻辑
 
@@ -170,14 +228,3 @@
   strings.Replace(o, "*", "all", -1)
   ```
 
-
-### 优化
-
-- fetch-nginx-vts: 每分钟获取nginx-vts的数据写文件
-- ngx-vts-zbx: 读文件提供给zabbix和夜莺
-
-```bash
-## for nightinagle
-* * * * * /usr/local/monitor/nginx_vts/fetch-ngx-vts >/dev/null 2>&1
-* * * * * /usr/local/monitor/nginx_vts/ngx-vts-zbx -n -p 10.11.100.230 >/dev/null 2>&1
-```

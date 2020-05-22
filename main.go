@@ -25,7 +25,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&c, "c", "http://10.21.0.11/ngx_status/format/json", "configuration file, default cfg.yaml")
+	flag.StringVar(&c, "c", "http://screen.zhenaioa.com/ngx_status/format/json", "configuration file, default cfg.yaml")
 	flag.BoolVar(&s, "s", false, "print serverzone")
 	flag.BoolVar(&u, "u", false, "print upstreamzone")
 	flag.StringVar(&o, "o", "", "custom parameters")
